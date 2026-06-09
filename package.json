@@ -1,0 +1,38 @@
+{
+  "name": "os-heybugs",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Open source BDD and Playwright execution engine for UI test automation",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "os-heybugs": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "sample": "node dist/cli.js run examples/basic.feature",
+    "prompt": "node dist/cli.js prompt"
+  },
+  "keywords": [
+    "bdd",
+    "playwright",
+    "automation",
+    "testing",
+    "open-source"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "playwright": "^1.56.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.6.3"
+  }
+}
