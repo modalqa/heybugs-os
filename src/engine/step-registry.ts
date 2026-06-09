@@ -39,6 +39,23 @@ async function clickTarget(page: Page, target: string): Promise<void> {
   await locator.click();
 }
 
+function buildTargetVariants(target: string): string[] {
+  const variants = new Set<string>([target.trim()]);
+
+  const stripped = target
+    .replace(/\s+in the sidebar$/i, '')
+    .replace(/\s+in the menu$/i, '')
+    .replace(/\s+button$/i, '')
+    .replace(/^the\s+/i, '')
+    .trim();
+
+  if (stripped) {
+    variants.add(stripped);
+  }
+
+  return [...variants];
+}
+
 async function fillTarget(page: Page, label: string, value: string): Promise<void> {
   const locator = await firstVisible([
     page.getByLabel(label, { exact: true }),
@@ -108,25 +125,41 @@ async function runPlannedAction(
       await page.goto(plan.url);
       return;
     case 'click':
+      for (const candidate of buildTargetVariants(plan.target)) {
+        try {
+          await clickTarget(page, candidate);
+          return;
+        } catch {
+          continue;
+        }
+      }
       try {
-        await clickTarget(page, plan.target);
-      } catch {
         await healSelector(page, 'click', plan.target, automation, llmClient);
+      } catch {
+        throw new Error(`Unable to click target after AI fallback: ${plan.target}`);
       }
       return;
     case 'fill':
-      try {
-        await fillTarget(page, plan.target, plan.value);
-      } catch {
-        await healSelector(page, 'fill', plan.target, automation, llmClient, plan.value);
+      for (const candidate of buildTargetVariants(plan.target)) {
+        try {
+          await fillTarget(page, candidate, plan.value);
+          return;
+        } catch {
+          continue;
+        }
       }
+      await healSelector(page, 'fill', plan.target, automation, llmClient, plan.value);
       return;
     case 'select':
-      try {
-        await selectTarget(page, plan.target, plan.value);
-      } catch {
-        await healSelector(page, 'select', plan.target, automation, llmClient, plan.value);
+      for (const candidate of buildTargetVariants(plan.target)) {
+        try {
+          await selectTarget(page, candidate, plan.value);
+          return;
+        } catch {
+          continue;
+        }
       }
+      await healSelector(page, 'select', plan.target, automation, llmClient, plan.value);
       return;
     case 'press':
       await page.keyboard.press(plan.key);
