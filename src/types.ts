@@ -42,11 +42,20 @@ export interface RunnerOptions {
   automation?: AutomationConfig;
 }
 
+export type StepStatus = 'passed' | 'failed' | 'skipped';
+
 export interface StepContext {
   page: Page;
   feature: FeatureDoc;
   scenario: Scenario;
   step: Step;
+  onAiUsed?: (result: AiUsedResult) => void;
+}
+
+export interface AiUsedResult {
+  action: string;
+  success: boolean;
+  error?: string;
 }
 
 export interface StepHandler {
@@ -56,9 +65,12 @@ export interface StepHandler {
 
 export interface StepExecutionResult {
   step: Step;
-  status: 'passed' | 'failed';
+  status: StepStatus;
   durationMs: number;
   error?: string;
+  aiUsed?: boolean;
+  aiSuccess?: boolean;
+  screenshotPath?: string;
 }
 
 export interface ScenarioExecutionResult {
@@ -68,14 +80,83 @@ export interface ScenarioExecutionResult {
   durationMs: number;
 }
 
+export interface RunEnvironment {
+  browser: string;
+  os: string;
+  nodeVersion: string;
+  envName?: string;
+  baseUrl?: string;
+  headless?: boolean;
+  timeoutMs?: number;
+}
+
 export interface FeatureExecutionResult {
   featureName: string;
   status: 'passed' | 'failed';
   scenarios: ScenarioExecutionResult[];
   durationMs: number;
+  skippedSteps?: number;
+  environment?: RunEnvironment;
+  aiSteps: AiStepRecord[];
 }
 
 export interface PromptToFeatureResult {
   featureText: string;
   source: 'ai' | 'heuristic';
+}
+
+export interface AiStepRecord {
+  stepText: string;
+  action: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface RunArtifacts {
+  screenshots: string[];
+  videoPath?: string;
+  tracePath?: string;
+  consoleLog?: string;
+}
+
+export interface ReportRun {
+  id: string;
+  runLabel: string;
+  timestamp: string;
+  featureName: string;
+  status: 'passed' | 'failed';
+  durationMs: number;
+  scenarios: ScenarioExecutionResult[];
+  filePath?: string;
+  environment?: RunEnvironment;
+  aiInvocations: number;
+  aiSuccess: number;
+  aiFailed: number;
+  aiSteps: AiStepRecord[];
+  artifacts?: RunArtifacts;
+  stepCount: number;
+  passedStepCount: number;
+  failedStepCount: number;
+  skippedStepCount: number;
+}
+
+export interface ReportSummary {
+  id: string;
+  runLabel: string;
+  timestamp: string;
+  featureName: string;
+  status: 'passed' | 'failed';
+  durationMs: number;
+  scenarioCount: number;
+  passedCount: number;
+  failedCount: number;
+  stepCount: number;
+  passedStepCount: number;
+  failedStepCount: number;
+  skippedStepCount: number;
+  filePath?: string;
+  environment?: RunEnvironment;
+  aiInvocations: number;
+  aiSuccess: number;
+  aiFailed: number;
 }

@@ -1,10 +1,15 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import { parseFeature } from '../bdd/parser';
 import type { AutomationConfig, PromptToFeatureResult } from '../types';
 import { promptToFeature } from '../ai/prompt-to-feature';
 import type {
+  AiStepRecord,
+  AiUsedResult,
   FeatureDoc,
   FeatureExecutionResult,
+  RunEnvironment,
   RunnerOptions,
   Scenario,
   ScenarioExecutionResult,
@@ -55,13 +60,28 @@ async function runStep(
   scenario: Scenario,
   step: Step,
   timeoutMs: number,
+  artifactDir: string,
+  aiSteps: AiStepRecord[],
 ): Promise<StepExecutionResult> {
   const start = Date.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let stepAiUsed = false;
+  let stepAiSuccess = false;
+
+  const onAiUsed = (result: AiUsedResult): void => {
+    stepAiUsed = true;
+    stepAiSuccess = result.success;
+    aiSteps.push({
+      stepText: `${step.keyword} ${step.text}`,
+      action: result.action,
+      success: result.success,
+      error: result.error,
+    });
+  };
 
   try {
     await Promise.race([
-      registry.execute({ page, feature, scenario, step }),
+      registry.execute({ page, feature, scenario, step, onAiUsed }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error(`Step timed out after ${timeoutMs}ms`)), timeoutMs);
       }),
@@ -71,13 +91,31 @@ async function runStep(
       step,
       status: 'passed',
       durationMs: Date.now() - start,
+      aiUsed: stepAiUsed || undefined,
+      aiSuccess: stepAiUsed ? stepAiSuccess : undefined,
     };
   } catch (error) {
+    // Capture screenshot on failure
+    let screenshotPath: string | undefined;
+    try {
+      if (!existsSync(artifactDir)) {
+        mkdirSync(artifactDir, { recursive: true });
+      }
+      const ssName = `failure-${Date.now()}.png`;
+      screenshotPath = join(artifactDir, ssName);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    } catch {
+      screenshotPath = undefined;
+    }
+
     return {
       step,
       status: 'failed',
       durationMs: Date.now() - start,
       error: error instanceof Error ? error.message : String(error),
+      aiUsed: stepAiUsed || undefined,
+      aiSuccess: stepAiUsed ? stepAiSuccess : undefined,
+      screenshotPath,
     };
   } finally {
     if (timer !== undefined) {
@@ -86,7 +124,7 @@ async function runStep(
   }
 }
 
-async function openBrowser(options: RunnerOptions): Promise<{ browser: Browser; context: BrowserContext; page: Page }> {
+async function openBrowser(options: RunnerOptions): Promise<{ browser: Browser; context: BrowserContext; page: Page; environment: RunEnvironment }> {
   const browser = await chromium.launch({ headless: options.headless ?? true });
   const context = await browser.newContext();
   if (options.traceDir) {
@@ -94,7 +132,17 @@ async function openBrowser(options: RunnerOptions): Promise<{ browser: Browser; 
   }
 
   const page = await context.newPage();
-  return { browser, context, page };
+
+  const environment: RunEnvironment = {
+    browser: `Chromium ${browser.version()}`,
+    os: process.platform,
+    nodeVersion: process.version,
+    baseUrl: options.baseUrl,
+    headless: options.headless ?? true,
+    timeoutMs: options.timeoutMs,
+  };
+
+  return { browser, context, page, environment };
 }
 
 export class FeatureRunner {
@@ -104,15 +152,20 @@ export class FeatureRunner {
     const normalized = expandFeature(feature);
     const timeoutMs = options.timeoutMs ?? 30_000;
     const startedAt = Date.now();
-    const { browser, context, page } = await openBrowser(options);
+    const runId = `run-${Date.now()}`;
+    const artifactDir = join(process.cwd(), '.heybugs', 'artifacts', runId);
+    const { browser, context, page, environment } = await openBrowser(options);
     const scenarioResults: ScenarioExecutionResult[] = [];
+    const aiSteps: AiStepRecord[] = [];
     let status: FeatureExecutionResult['status'] = 'passed';
+    let totalSkipped = 0;
 
     try {
       for (const scenario of normalized.scenarios) {
         const scenarioStart = Date.now();
         const steps: StepExecutionResult[] = [];
         let scenarioStatus: ScenarioExecutionResult['status'] = 'passed';
+        let scenarioFailed = false;
 
         for (const step of [...normalized.background, ...scenario.steps]) {
           const stepToRun = {
@@ -124,12 +177,23 @@ export class FeatureRunner {
             stepToRun.text = stepToRun.text.replace(/^I go to "([^"]+)"$/, (_match, target: string) => `I go to "${resolveUrl(options.baseUrl, target)}"`);
           }
 
-          const result = await runStep(this.registry, page, normalized, scenario, stepToRun, timeoutMs);
+          if (scenarioFailed) {
+            // Mark remaining steps as skipped
+            steps.push({
+              step: stepToRun,
+              status: 'skipped',
+              durationMs: 0,
+            });
+            totalSkipped++;
+            continue;
+          }
+
+          const result = await runStep(this.registry, page, normalized, scenario, stepToRun, timeoutMs, artifactDir, aiSteps);
           steps.push(result);
           if (result.status === 'failed') {
+            scenarioFailed = true;
             scenarioStatus = 'failed';
             status = 'failed';
-            break;
           }
         }
 
@@ -153,6 +217,9 @@ export class FeatureRunner {
       status,
       scenarios: scenarioResults,
       durationMs: Date.now() - startedAt,
+      skippedSteps: totalSkipped,
+      environment,
+      aiSteps,
     };
   }
 

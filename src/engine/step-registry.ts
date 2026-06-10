@@ -24,7 +24,34 @@ async function firstVisible(locators: Array<ReturnType<Page['locator']>>): Promi
   return null;
 }
 
+/**
+ * Resolves a locator when the target uses an explicit ID or data-testid prefix:
+ *  - "#someId"    → page.locator('#someId')
+ *  - "@testId"    → page.locator('[data-testid="testId"]')
+ * Returns null when the target does not match either convention.
+ */
+function resolveExplicitLocator(page: Page, target: string): ReturnType<Page['locator']> | null {
+  const trimmed = target.trim();
+  if (trimmed.startsWith('#') && trimmed.length > 1) {
+    return page.locator(trimmed);
+  }
+  if (trimmed.startsWith('@') && trimmed.length > 1) {
+    return page.locator(`[data-testid="${trimmed.slice(1)}"]`);
+  }
+  return null;
+}
+
 async function clickTarget(page: Page, target: string): Promise<void> {
+  const explicit = resolveExplicitLocator(page, target);
+  if (explicit) {
+    const locator = await firstVisible([explicit]);
+    if (locator) {
+      await locator.click();
+      return;
+    }
+    throw new Error(`Unable to find clickable target: ${target}`);
+  }
+
   const locator = await firstVisible([
     page.getByRole('button', { name: target }),
     page.getByRole('link', { name: target }),
@@ -57,6 +84,16 @@ function buildTargetVariants(target: string): string[] {
 }
 
 async function fillTarget(page: Page, label: string, value: string): Promise<void> {
+  const explicit = resolveExplicitLocator(page, label);
+  if (explicit) {
+    const locator = await firstVisible([explicit]);
+    if (locator) {
+      await locator.fill(value);
+      return;
+    }
+    throw new Error(`Unable to find input target: ${label}`);
+  }
+
   const locator = await firstVisible([
     page.getByLabel(label, { exact: true }),
     page.getByPlaceholder(label, { exact: true }),
@@ -71,6 +108,16 @@ async function fillTarget(page: Page, label: string, value: string): Promise<voi
 }
 
 async function selectTarget(page: Page, label: string, value: string): Promise<void> {
+  const explicit = resolveExplicitLocator(page, label);
+  if (explicit) {
+    const locator = await firstVisible([explicit]);
+    if (locator) {
+      await locator.selectOption({ label: value });
+      return;
+    }
+    throw new Error(`Unable to find select target: ${label}`);
+  }
+
   const locator = await firstVisible([
     page.getByLabel(label, { exact: true }),
     page.getByRole('combobox', { name: label }),
@@ -211,14 +258,20 @@ async function runStepWithAiFallback(
     `Visible page sample:\n${sample}`,
   ].join('\n');
 
-  const raw = await llmClient.generate([
-    { role: 'system', content: 'Return only valid JSON. Do not add markdown.' },
-    { role: 'user', content: prompt },
-  ]);
+  try {
+    const raw = await llmClient.generate([
+      { role: 'system', content: 'Return only valid JSON. Do not add markdown.' },
+      { role: 'user', content: prompt },
+    ]);
 
-  const plan = JSON.parse(raw) as AiStepPlan;
-  console.log(`AI fallback: planned action -> ${plan.action}`);
-  await runPlannedAction(context.page, plan, automation, llmClient);
+    const plan = JSON.parse(raw) as AiStepPlan;
+    console.log(`AI fallback: planned action -> ${plan.action}`);
+    await runPlannedAction(context.page, plan, automation, llmClient);
+    context.onAiUsed?.({ action: plan.action, success: true });
+  } catch (err) {
+    context.onAiUsed?.({ action: 'interpret', success: false, error: err instanceof Error ? err.message : String(err) });
+    throw err;
+  }
 }
 
 export class StepRegistry {
@@ -351,6 +404,24 @@ export function createAutomationAwareRegistry(automation?: AutomationConfig): St
   const llmClient = automation ? createLlmClient(automation) : null;
   const registry = new StepRegistry(automation, (context) => runStepWithAiFallback(context, automation, llmClient));
 
+  // Helper: try healSelector and track AI usage
+  async function healAndTrack(
+    context: StepContext,
+    kind: 'click' | 'fill' | 'select' | 'text',
+    target: string,
+    value?: string,
+  ): Promise<void> {
+    try {
+      const result = await healSelector(context.page, kind, target, automation, llmClient, value);
+      if (result.description.startsWith('ai:')) {
+        context.onAiUsed?.({ action: kind, success: true });
+      }
+    } catch (err) {
+      context.onAiUsed?.({ action: `heal:${kind}`, success: false, error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    }
+  }
+
   registry.register(/^I go to "([^"]+)"$/, async ({ page }, matches) => {
     const target = matches[1];
     const url = /^https?:\/\//i.test(target) || target.startsWith('file:')
@@ -373,70 +444,70 @@ export function createAutomationAwareRegistry(automation?: AutomationConfig): St
     await page.goto(url);
   });
 
-  registry.register(/^I click "([^"]+)"$/, async ({ page }, matches) => {
+  registry.register(/^I click "([^"]+)"$/, async (context, matches) => {
     const target = matches[1];
     try {
-      await clickTarget(page, target);
+      await clickTarget(context.page, target);
     } catch {
-      await healSelector(page, 'click', target, automation, llmClient);
+      await healAndTrack(context, 'click', target);
     }
   });
 
-  registry.register(/^I click the "([^"]+)" button$/, async ({ page }, matches) => {
+  registry.register(/^I click the "([^"]+)" button$/, async (context, matches) => {
     const target = matches[1];
     try {
-      await clickTarget(page, target);
+      await clickTarget(context.page, target);
     } catch {
-      await healSelector(page, 'click', target, automation, llmClient);
+      await healAndTrack(context, 'click', target);
     }
   });
 
-  registry.register(/^I click the ([^"]+) button$/i, async ({ page }, matches) => {
+  registry.register(/^I click the ([^"]+) button$/i, async (context, matches) => {
     const target = matches[1];
     try {
-      await clickTarget(page, target);
+      await clickTarget(context.page, target);
     } catch {
-      await healSelector(page, 'click', target, automation, llmClient);
+      await healAndTrack(context, 'click', target);
     }
   });
 
-  registry.register(/^I fill "([^"]+)" with "([^"]+)"$/, async ({ page }, matches) => {
-    const target = matches[1];
-    const value = matches[2];
-    try {
-      await fillTarget(page, target, value);
-    } catch {
-      await healSelector(page, 'fill', target, automation, llmClient, value);
-    }
-  });
-
-  registry.register(/^I fill in "([^"]+)" with "([^"]+)"$/, async ({ page }, matches) => {
+  registry.register(/^I fill "([^"]+)" with "([^"]+)"$/, async (context, matches) => {
     const target = matches[1];
     const value = matches[2];
     try {
-      await fillTarget(page, target, value);
+      await fillTarget(context.page, target, value);
     } catch {
-      await healSelector(page, 'fill', target, automation, llmClient, value);
+      await healAndTrack(context, 'fill', target, value);
     }
   });
 
-  registry.register(/^I fill in the ([^"]+) field with "([^"]+)"$/i, async ({ page }, matches) => {
+  registry.register(/^I fill in "([^"]+)" with "([^"]+)"$/, async (context, matches) => {
     const target = matches[1];
     const value = matches[2];
     try {
-      await fillTarget(page, target, value);
+      await fillTarget(context.page, target, value);
     } catch {
-      await healSelector(page, 'fill', target, automation, llmClient, value);
+      await healAndTrack(context, 'fill', target, value);
     }
   });
 
-  registry.register(/^I select "([^"]+)" from "([^"]+)"$/, async ({ page }, matches) => {
+  registry.register(/^I fill in the ([^"]+) field with "([^"]+)"$/i, async (context, matches) => {
+    const target = matches[1];
+    const value = matches[2];
+    try {
+      await fillTarget(context.page, target, value);
+    } catch {
+      await healAndTrack(context, 'fill', target, value);
+    }
+  });
+
+  registry.register(/^I select "([^"]+)" from "([^"]+)"$/, async (context, matches) => {
     const value = matches[1];
     const target = matches[2];
     try {
-      await selectTarget(page, target, value);
+      await selectTarget(context.page, target, value);
     } catch {
-      await healSelector(page, 'select', target, automation, llmClient, value);
+      await healAndTrack(context, 'select', target, value);
     }
   });
 
@@ -444,35 +515,35 @@ export function createAutomationAwareRegistry(automation?: AutomationConfig): St
     await page.keyboard.press(matches[1]);
   });
 
-  registry.register(/^I should see "([^"]+)"$/, async ({ page }, matches) => {
+  registry.register(/^I should see "([^"]+)"$/, async (context, matches) => {
     try {
-      await expectText(page, matches[1]);
+      await expectText(context.page, matches[1]);
     } catch {
-      await healSelector(page, 'text', matches[1], automation, llmClient);
+      await healAndTrack(context, 'text', matches[1]);
     }
   });
 
-  registry.register(/^I should see (?:a heading with text )?"([^"]+)"$/, async ({ page }, matches) => {
+  registry.register(/^I should see (?:a heading with text )?"([^"]+)"$/, async (context, matches) => {
     try {
-      await expectText(page, matches[1]);
+      await expectText(context.page, matches[1]);
     } catch {
-      await healSelector(page, 'text', matches[1], automation, llmClient);
+      await healAndTrack(context, 'text', matches[1]);
     }
   });
 
-  registry.register(/^I should see the "([^"]+)" title on the page$/, async ({ page }, matches) => {
+  registry.register(/^I should see the "([^"]+)" title on the page$/, async (context, matches) => {
     try {
-      await expectText(page, matches[1]);
+      await expectText(context.page, matches[1]);
     } catch {
-      await healSelector(page, 'text', matches[1], automation, llmClient);
+      await healAndTrack(context, 'text', matches[1]);
     }
   });
 
-  registry.register(/^I wait for "([^"]+)"$/, async ({ page }, matches) => {
+  registry.register(/^I wait for "([^"]+)"$/, async (context, matches) => {
     try {
-      await expectText(page, matches[1]);
+      await expectText(context.page, matches[1]);
     } catch {
-      await healSelector(page, 'text', matches[1], automation, llmClient);
+      await healAndTrack(context, 'text', matches[1]);
     }
   });
 

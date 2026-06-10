@@ -3,6 +3,10 @@ declare const process: {
   exitCode?: number;
   cwd: () => string;
   env: Record<string, string | undefined>;
+  exit: (code?: number) => never;
+  on: (event: string, handler: () => void) => void;
+  platform: string;
+  version: string;
 };
 
 declare function setTimeout(handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]): number;
@@ -52,6 +56,7 @@ declare module 'playwright' {
     };
     waitForURL(predicate: (url: URL) => boolean): Promise<void>;
     waitForTimeout(milliseconds: number): Promise<void>;
+    screenshot(options: { path: string; fullPage?: boolean }): Promise<Buffer>;
   }
 
   export interface BrowserContext {
@@ -66,9 +71,31 @@ declare module 'playwright' {
   export interface Browser {
     newContext(): Promise<BrowserContext>;
     close(): Promise<void>;
+    version(): string;
   }
 
   export const chromium: {
     launch(options: { headless: boolean }): Promise<Browser>;
   };
+}
+
+declare module 'vite' {
+  interface ViteDevServer {
+    middlewares: (req: unknown, res: unknown, next: () => void) => void;
+    close(): Promise<void>;
+  }
+
+  interface InlineConfig {
+    configFile?: string | false;
+    root?: string;
+    server?: { middlewareMode?: boolean };
+    appType?: string;
+    plugins?: unknown[];
+  }
+
+  export function createServer(config: InlineConfig): Promise<ViteDevServer>;
+}
+
+declare module '@vitejs/plugin-react' {
+  export default function react(): unknown;
 }
