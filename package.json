@@ -15,7 +15,7 @@
     "clean": "rm -rf dist",
     "start": "node dist/cli.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "sample": "node dist/cli.js run examples/basic.feature",
+    "sample": "node dist/cli.js run examples/todomvc-add-todo.feature",
     "prompt": "node dist/cli.js prompt",
     "report": "node dist/cli.js report"
   },
