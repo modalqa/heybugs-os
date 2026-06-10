@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import { createLlmClient } from '../ai/llm-client';
+import { getGlobalTokenTracker, calculateCost } from '../ai/token-tracker';
 import type { AutomationConfig } from '../types';
 import { healSelector } from './selector-healer';
 import type { StepContext, StepHandler } from '../types';
@@ -259,15 +260,27 @@ async function runStepWithAiFallback(
   ].join('\n');
 
   try {
-    const raw = await llmClient.generate([
+    const response = await llmClient.generate([
       { role: 'system', content: 'Return only valid JSON. Do not add markdown.' },
       { role: 'user', content: prompt },
     ]);
 
-    const plan = JSON.parse(raw) as AiStepPlan;
+    const plan = JSON.parse(response.content) as AiStepPlan;
+
+    if (response.usage && automation) {
+      getGlobalTokenTracker().addUsage(response.usage, automation.model);
+      context.onAiUsed?.({
+        action: plan.action,
+        success: true,
+        tokens: response.usage,
+        cost: calculateCost(response.usage, automation.model),
+      });
+    } else {
+      context.onAiUsed?.({ action: plan.action, success: true });
+    }
+
     console.log(`AI fallback: planned action -> ${plan.action}`);
     await runPlannedAction(context.page, plan, automation, llmClient);
-    context.onAiUsed?.({ action: plan.action, success: true });
   } catch (err) {
     context.onAiUsed?.({ action: 'interpret', success: false, error: err instanceof Error ? err.message : String(err) });
     throw err;

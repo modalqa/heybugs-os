@@ -186,6 +186,10 @@ async function main(): Promise<void> {
     console.log(`Feature: ${result.featureName}`);
     console.log(`Status: ${result.status}`);
     console.log(`Duration: ${result.durationMs}ms`);
+    if (result.tokens) {
+      console.log(`AI Tokens: ${result.tokens.promptTokens} in / ${result.tokens.completionTokens} out / ${result.tokens.totalTokens} total`);
+      console.log(`AI Cost: $${(result.totalCost ?? 0).toFixed(6)}`);
+    }
     if (result.status === 'failed') {
       process.exitCode = 1;
     }
@@ -229,6 +233,10 @@ async function main(): Promise<void> {
     console.log(`Feature: ${result.featureName}`);
     console.log(`Status: ${result.status}`);
     console.log(`Duration: ${result.durationMs}ms`);
+    if (result.tokens) {
+      console.log(`AI Tokens: ${result.tokens.promptTokens} in / ${result.tokens.completionTokens} out / ${result.tokens.totalTokens} total`);
+      console.log(`AI Cost: $${(result.totalCost ?? 0).toFixed(6)}`);
+    }
 
     // Save report for dashboard
     saveReport(result, filePath, result.environment);

@@ -98,6 +98,8 @@ export function saveReport(
     passedStepCount: stepCounts.passed,
     failedStepCount: stepCounts.failed,
     skippedStepCount: stepCounts.skipped,
+    tokens: result.tokens,
+    totalCost: result.totalCost,
   };
 
   const fileName = `${report.id}.json`;
@@ -145,6 +147,8 @@ export function loadReportSummaries(): ReportSummary[] {
     aiInvocations: run.aiInvocations ?? 0,
     aiSuccess: run.aiSuccess ?? 0,
     aiFailed: run.aiFailed ?? 0,
+    tokens: run.tokens,
+    totalCost: run.totalCost,
   }));
 }
 

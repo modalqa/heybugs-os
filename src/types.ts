@@ -3,7 +3,7 @@ import type { Page } from 'playwright';
 export type StepKeyword = 'Given' | 'When' | 'Then' | 'And' | 'But';
 
 export interface AutomationConfig {
-  aiProvider: 'openai-compatible' | 'openrouter' | 'gemini' | 'claude' | 'ollama' | 'mock';
+  aiProvider: 'openai-compatible' | 'openrouter' | 'gemini' | 'claude' | 'ollama' | 'sumopod' | 'mock';
   apiKey?: string;
   apiBaseUrl: string;
   model: string;
@@ -56,6 +56,12 @@ export interface AiUsedResult {
   action: string;
   success: boolean;
   error?: string;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  cost?: number;
 }
 
 export interface StepHandler {
@@ -98,6 +104,12 @@ export interface FeatureExecutionResult {
   skippedSteps?: number;
   environment?: RunEnvironment;
   aiSteps: AiStepRecord[];
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  totalCost?: number;
 }
 
 export interface PromptToFeatureResult {
@@ -110,6 +122,12 @@ export interface AiStepRecord {
   action: string;
   success: boolean;
   error?: string;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  cost?: number;
 }
 
 export interface RunArtifacts {
@@ -138,6 +156,12 @@ export interface ReportRun {
   passedStepCount: number;
   failedStepCount: number;
   skippedStepCount: number;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  totalCost?: number;
 }
 
 export interface ReportSummary {
@@ -159,4 +183,10 @@ export interface ReportSummary {
   aiInvocations: number;
   aiSuccess: number;
   aiFailed: number;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  totalCost?: number;
 }

@@ -188,7 +188,7 @@ function FeatureResultsTable({ run }: { run: ReportRun }): React.ReactElement {
 
 /* ---- AI Activity Mini Panel ---- */
 function AiActivityMini({ run }: { run: ReportRun }): React.ReactElement {
-  const { aiInvocations, aiSuccess, aiFailed, aiSteps } = run;
+  const { aiInvocations, aiSuccess, aiFailed, aiSteps, tokens, totalCost } = run;
 
   return (
     <div className="panel ai-mini-panel">
@@ -211,6 +211,28 @@ function AiActivityMini({ run }: { run: ReportRun }): React.ReactElement {
               <span className="ai-stat-label">Failed</span>
             </div>
           </div>
+          {tokens && (
+            <div className="ai-tokens-row">
+              <div className="ai-token-stat">
+                <span className="ai-token-value">{tokens.promptTokens}</span>
+                <span className="ai-token-label">Prompt Tokens</span>
+              </div>
+              <div className="ai-token-stat">
+                <span className="ai-token-value">{tokens.completionTokens}</span>
+                <span className="ai-token-label">Completion Tokens</span>
+              </div>
+              <div className="ai-token-stat">
+                <span className="ai-token-value">{tokens.totalTokens}</span>
+                <span className="ai-token-label">Total Tokens</span>
+              </div>
+            </div>
+          )}
+          {totalCost !== undefined && (
+            <div className="ai-cost-row">
+              <span className="ai-cost-label">Total Cost:</span>
+              <span className="ai-cost-value">${totalCost.toFixed(6)}</span>
+            </div>
+          )}
           <div className="ai-recent">
             <div className="ai-recent-title">Recent AI Steps</div>
             {aiSteps.slice(0, 5).map((step, i) => (

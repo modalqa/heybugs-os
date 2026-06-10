@@ -1,6 +1,7 @@
 import type { Page } from 'playwright';
 import type { AutomationConfig } from '../types';
 import type { LlmClient } from '../ai/llm-client';
+import { getGlobalTokenTracker } from '../ai/token-tracker';
 
 type SelectorKind = 'click' | 'fill' | 'select' | 'text';
 
@@ -112,8 +113,11 @@ export async function healSelector(page: Page, kind: SelectorKind, target: strin
     ].join('\n');
 
     try {
-      const raw = await llmClient.generate([{ role: 'system', content: 'Return only JSON.' }, { role: 'user', content: prompt }]);
-      const parsed = JSON.parse(raw) as { strategy?: string; selector?: string; value?: string };
+      const response = await llmClient.generate([{ role: 'system', content: 'Return only JSON.' }, { role: 'user', content: prompt }]);
+      if (response.usage && config) {
+        getGlobalTokenTracker().addUsage(response.usage, config.model);
+      }
+      const parsed = JSON.parse(response.content) as { strategy?: string; selector?: string; value?: string };
 
       if (parsed.strategy === 'getByRole' && parsed.selector) {
         const locator = page.getByRole(parsed.selector, { name: parsed.value ?? target });

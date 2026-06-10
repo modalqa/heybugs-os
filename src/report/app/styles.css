@@ -745,6 +745,51 @@ html, body {
 .ai-card-success .ai-stat-icon { background: var(--passed-bg); color: var(--passed); }
 .ai-card-failed .ai-stat-icon { background: var(--failed-bg); color: var(--failed); }
 .ai-card-rate .ai-stat-icon { background: var(--primary-bg); color: var(--primary); }
+.ai-card-cost .ai-stat-icon { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
+.ai-tokens-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+}
+.ai-token-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+.ai-token-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ai-token-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.ai-cost-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: var(--radius);
+}
+.ai-cost-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.ai-cost-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #22c55e;
+}
 
 .ai-steps-panel { margin-top: 0; }
 .ai-steps-list { display: flex; flex-direction: column; gap: 6px; }

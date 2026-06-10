@@ -5,8 +5,19 @@ export interface LlmMessage {
   content: string;
 }
 
+export interface LlmUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+export interface LlmResponse {
+  content: string;
+  usage?: LlmUsage;
+}
+
 export interface LlmClient {
-  generate(messages: LlmMessage[]): Promise<string>;
+  generate(messages: LlmMessage[]): Promise<LlmResponse>;
 }
 
 function trimSlash(value: string): string {
@@ -25,7 +36,7 @@ function extractContent(payload: { choices?: Array<{ message?: { content?: strin
 export class OpenAiCompatibleClient implements LlmClient {
   constructor(private readonly config: AutomationConfig) {}
 
-  async generate(messages: LlmMessage[]): Promise<string> {
+  async generate(messages: LlmMessage[]): Promise<LlmResponse> {
     if (!this.config.apiKey) {
       throw new Error('Missing API key for AI generation. Set HEYBUGS_AI_API_KEY or OPENAI_API_KEY in .env.');
     }
@@ -49,15 +60,23 @@ export class OpenAiCompatibleClient implements LlmClient {
 
     const payload = await response.json() as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
-    return extractContent(payload);
+    return {
+      content: extractContent(payload),
+      usage: payload.usage ? {
+        promptTokens: payload.usage.prompt_tokens ?? 0,
+        completionTokens: payload.usage.completion_tokens ?? 0,
+        totalTokens: payload.usage.total_tokens ?? 0,
+      } : undefined,
+    };
   }
 }
 
 export class OpenRouterClient implements LlmClient {
   constructor(private readonly config: AutomationConfig) {}
 
-  async generate(messages: LlmMessage[]): Promise<string> {
+  async generate(messages: LlmMessage[]): Promise<LlmResponse> {
     if (!this.config.apiKey) {
       throw new Error('Missing OpenRouter API key. Set HEYBUGS_AI_API_KEY or OPENROUTER_API_KEY in .env.');
     }
@@ -83,15 +102,23 @@ export class OpenRouterClient implements LlmClient {
 
     const payload = await response.json() as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
-    return extractContent(payload);
+    return {
+      content: extractContent(payload),
+      usage: payload.usage ? {
+        promptTokens: payload.usage.prompt_tokens ?? 0,
+        completionTokens: payload.usage.completion_tokens ?? 0,
+        totalTokens: payload.usage.total_tokens ?? 0,
+      } : undefined,
+    };
   }
 }
 
 export class GeminiOpenAiClient implements LlmClient {
   constructor(private readonly config: AutomationConfig) {}
 
-  async generate(messages: LlmMessage[]): Promise<string> {
+  async generate(messages: LlmMessage[]): Promise<LlmResponse> {
     if (!this.config.apiKey) {
       throw new Error('Missing Gemini API key. Set HEYBUGS_AI_API_KEY or GEMINI_API_KEY in .env.');
     }
@@ -115,15 +142,23 @@ export class GeminiOpenAiClient implements LlmClient {
 
     const payload = await response.json() as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
-    return extractContent(payload);
+    return {
+      content: extractContent(payload),
+      usage: payload.usage ? {
+        promptTokens: payload.usage.prompt_tokens ?? 0,
+        completionTokens: payload.usage.completion_tokens ?? 0,
+        totalTokens: payload.usage.total_tokens ?? 0,
+      } : undefined,
+    };
   }
 }
 
 export class ClaudeClient implements LlmClient {
   constructor(private readonly config: AutomationConfig) {}
 
-  async generate(messages: LlmMessage[]): Promise<string> {
+  async generate(messages: LlmMessage[]): Promise<LlmResponse> {
     if (!this.config.apiKey) {
       throw new Error('Missing Anthropic API key. Set HEYBUGS_AI_API_KEY or ANTHROPIC_API_KEY in .env.');
     }
@@ -154,6 +189,7 @@ export class ClaudeClient implements LlmClient {
 
     const payload = await response.json() as {
       content?: Array<{ type: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
     };
 
     const text = payload.content?.find((item) => item.type === 'text')?.text;
@@ -161,14 +197,21 @@ export class ClaudeClient implements LlmClient {
       throw new Error('Claude response did not include text content.');
     }
 
-    return text;
+    return {
+      content: text,
+      usage: payload.usage ? {
+        promptTokens: payload.usage.input_tokens ?? 0,
+        completionTokens: payload.usage.output_tokens ?? 0,
+        totalTokens: (payload.usage.input_tokens ?? 0) + (payload.usage.output_tokens ?? 0),
+      } : undefined,
+    };
   }
 }
 
 export class OllamaClient implements LlmClient {
   constructor(private readonly config: AutomationConfig) {}
 
-  async generate(messages: LlmMessage[]): Promise<string> {
+  async generate(messages: LlmMessage[]): Promise<LlmResponse> {
     const response = await fetch(`${trimSlash(this.config.apiBaseUrl)}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -188,8 +231,56 @@ export class OllamaClient implements LlmClient {
 
     const payload = await response.json() as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
-    return extractContent(payload);
+    return {
+      content: extractContent(payload),
+      usage: payload.usage ? {
+        promptTokens: payload.usage.prompt_tokens ?? 0,
+        completionTokens: payload.usage.completion_tokens ?? 0,
+        totalTokens: payload.usage.total_tokens ?? 0,
+      } : undefined,
+    };
+  }
+}
+
+export class SumopodClient implements LlmClient {
+  constructor(private readonly config: AutomationConfig) {}
+
+  async generate(messages: LlmMessage[]): Promise<LlmResponse> {
+    if (!this.config.apiKey) {
+      throw new Error('Missing Sumopod API key. Set HEYBUGS_AI_API_KEY or SUMOPOD_API_KEY in .env.');
+    }
+
+    const response = await fetch(`${trimSlash(this.config.apiBaseUrl)}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: 0.2,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Sumopod request failed with HTTP ${response.status}`);
+    }
+
+    const payload = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    };
+    return {
+      content: extractContent(payload),
+      usage: payload.usage ? {
+        promptTokens: payload.usage.prompt_tokens ?? 0,
+        completionTokens: payload.usage.completion_tokens ?? 0,
+        totalTokens: payload.usage.total_tokens ?? 0,
+      } : undefined,
+    };
   }
 }
 
@@ -200,6 +291,10 @@ export function createLlmClient(config: AutomationConfig): LlmClient | null {
 
   if (config.aiProvider === 'ollama') {
     return new OllamaClient(config);
+  }
+
+  if (config.aiProvider === 'sumopod') {
+    return new SumopodClient(config);
   }
 
   if (!config.apiKey) {

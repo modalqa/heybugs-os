@@ -4,6 +4,7 @@ import { join } from 'path';
 import { parseFeature } from '../bdd/parser';
 import type { AutomationConfig, PromptToFeatureResult } from '../types';
 import { promptToFeature } from '../ai/prompt-to-feature';
+import { getGlobalTokenTracker, resetGlobalTokenTracker, formatTokens, formatCost } from '../ai/token-tracker';
 import type {
   AiStepRecord,
   AiUsedResult,
@@ -18,6 +19,30 @@ import type {
 } from '../types';
 import { createAutomationAwareRegistry, createDefaultRegistry, StepRegistry } from './step-registry';
 import { loadEnvironment, createAutomationConfig } from '../config';
+
+function getViewportSize(): { width: number; height: number } {
+  if (process.platform === 'darwin') {
+    try {
+      const { execSync } = require('node:child_process');
+      const output = execSync('system_profiler SPDisplaysDataType -json 2>/dev/null', { encoding: 'utf8' });
+      const data = JSON.parse(output);
+      const displays = data?.SPDisplaysDataType;
+      if (displays) {
+        const displayArray = Array.isArray(displays) ? displays : [displays];
+        for (const display of displayArray) {
+          if (display?.CurrentResolution) {
+            const match = display.CurrentResolution.match(/(\d+)\s*x\s*(\d+)/);
+            if (match) {
+              return { width: parseInt(match[1], 10), height: parseInt(match[2], 10) };
+            }
+          }
+        }
+      }
+    } catch {
+    }
+  }
+  return { width: 1920, height: 1080 };
+}
 
 function resolveUrl(baseUrl: string | undefined, target: string): string {
   if (/^https?:\/\//i.test(target) || target.startsWith('file:') || target.startsWith('data:')) {
@@ -80,6 +105,7 @@ async function runStep(
   };
 
   try {
+    console.log(`\n▶ Running: ${step.keyword} ${step.text}`);
     await Promise.race([
       registry.execute({ page, feature, scenario, step, onAiUsed }),
       new Promise<never>((_, reject) => {
@@ -125,8 +151,9 @@ async function runStep(
 }
 
 async function openBrowser(options: RunnerOptions): Promise<{ browser: Browser; context: BrowserContext; page: Page; environment: RunEnvironment }> {
+  const viewport = getViewportSize();
   const browser = await chromium.launch({ headless: options.headless ?? true });
-  const context = await browser.newContext();
+  const context = await (browser.newContext as (opts?: any) => Promise<BrowserContext>)({ viewport });
   if (options.traceDir) {
     await context.tracing.start({ screenshots: true, snapshots: true });
   }
@@ -149,6 +176,7 @@ export class FeatureRunner {
   constructor(private readonly registry: StepRegistry = createDefaultRegistry()) {}
 
   async runFeature(feature: FeatureDoc, options: RunnerOptions = {}): Promise<FeatureExecutionResult> {
+    resetGlobalTokenTracker();
     const normalized = expandFeature(feature);
     const timeoutMs = options.timeoutMs ?? 30_000;
     const startedAt = Date.now();
@@ -212,7 +240,8 @@ export class FeatureRunner {
       await browser.close();
     }
 
-    return {
+    const tokenSummary = getGlobalTokenTracker().getSummary();
+    const result: FeatureExecutionResult = {
       featureName: normalized.name,
       status,
       scenarios: scenarioResults,
@@ -221,6 +250,15 @@ export class FeatureRunner {
       environment,
       aiSteps,
     };
+    if (tokenSummary.invocationCount > 0) {
+      result.tokens = {
+        promptTokens: tokenSummary.promptTokens,
+        completionTokens: tokenSummary.completionTokens,
+        totalTokens: tokenSummary.totalTokens,
+      };
+      result.totalCost = tokenSummary.totalCost;
+    }
+    return result;
   }
 
   async runFeatureFile(filePath: string, options: RunnerOptions = {}): Promise<FeatureExecutionResult> {

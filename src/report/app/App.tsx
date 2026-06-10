@@ -31,6 +31,12 @@ export interface AiStepRecord {
   action: string;
   success: boolean;
   error?: string;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  cost?: number;
 }
 
 export interface RunEnvironment {
@@ -69,6 +75,12 @@ export interface ReportRun {
   passedStepCount: number;
   failedStepCount: number;
   skippedStepCount: number;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  totalCost?: number;
 }
 
 export interface ReportSummary {
@@ -90,6 +102,12 @@ export interface ReportSummary {
   aiInvocations: number;
   aiSuccess: number;
   aiFailed: number;
+  tokens?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  totalCost?: number;
 }
 
 export type TabId = 'overview' | 'features' | 'timeline' | 'ai-activity' | 'environment' | 'attachments';

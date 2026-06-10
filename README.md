@@ -102,7 +102,15 @@ HEYBUGS_AI_MODEL=llama3.1:8b
 HEYBUGS_AI_API_KEY=
 ```
 
-`HEYBUGS_AI_API_KEY` is the universal key used by the AI layer for prompt-to-automation and AI selector self-healing requests. If this key is empty, os-heybugs falls back to provider-specific keys (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) and then to heuristic mode when no key is available (except local Ollama which can run without key).
+```bash
+# Sumopod
+HEYBUGS_AI_PROVIDER=sumopod
+HEYBUGS_AI_API_KEY=your_sumopod_key
+HEYBUGS_AI_API_BASE_URL=https://ai.sumopod.com/v1
+HEYBUGS_AI_MODEL=gpt-4o-mini
+```
+
+`HEYBUGS_AI_API_KEY` is the universal key used by the AI layer for prompt-to-automation and AI selector self-healing requests. If this key is empty, os-heybugs falls back to provider-specific keys (`SUMOPOD_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) and then to heuristic mode when no key is available (except local Ollama which can run without key).
 
 ## Feature file format
 

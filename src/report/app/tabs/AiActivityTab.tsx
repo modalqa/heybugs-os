@@ -6,7 +6,7 @@ interface Props {
 }
 
 export default function AiActivityTab({ run }: Props): React.ReactElement {
-  const { aiInvocations, aiSuccess, aiFailed, aiSteps } = run;
+  const { aiInvocations, aiSuccess, aiFailed, aiSteps, tokens, totalCost } = run;
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
   const successRate = aiInvocations > 0 ? ((aiSuccess / aiInvocations) * 100).toFixed(1) : '0.0';
@@ -48,6 +48,40 @@ export default function AiActivityTab({ run }: Props): React.ReactElement {
           </div>
         </div>
       </div>
+
+      {/* Token Usage Cards */}
+      {tokens && (
+        <div className="ai-stats-grid">
+          <div className="ai-stat-card">
+            <div className="ai-stat-icon">◀</div>
+            <div className="ai-stat-body">
+              <div className="ai-stat-value">{tokens.promptTokens}</div>
+              <div className="ai-stat-label">Prompt Tokens</div>
+            </div>
+          </div>
+          <div className="ai-stat-card">
+            <div className="ai-stat-icon">▶</div>
+            <div className="ai-stat-body">
+              <div className="ai-stat-value">{tokens.completionTokens}</div>
+              <div className="ai-stat-label">Completion Tokens</div>
+            </div>
+          </div>
+          <div className="ai-stat-card">
+            <div className="ai-stat-icon">◉</div>
+            <div className="ai-stat-body">
+              <div className="ai-stat-value">{tokens.totalTokens}</div>
+              <div className="ai-stat-label">Total Tokens</div>
+            </div>
+          </div>
+          <div className="ai-stat-card ai-card-cost">
+            <div className="ai-stat-icon">$</div>
+            <div className="ai-stat-body">
+              <div className="ai-stat-value">${(totalCost ?? 0).toFixed(6)}</div>
+              <div className="ai-stat-label">Total Cost</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI Steps List */}
       <div className="panel ai-steps-panel">

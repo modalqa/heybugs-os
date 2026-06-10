@@ -80,6 +80,7 @@ export function createAutomationConfig(): AutomationConfig {
     providerRaw === 'gemini' ||
     providerRaw === 'claude' ||
     providerRaw === 'ollama' ||
+    providerRaw === 'sumopod' ||
     providerRaw === 'mock'
   )
     ? providerRaw
@@ -91,6 +92,7 @@ export function createAutomationConfig(): AutomationConfig {
     gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
     claude: 'https://api.anthropic.com/v1',
     ollama: 'http://localhost:11434/v1',
+    sumopod: 'https://ai.sumopod.com/v1',
   };
 
   const defaultModelByProvider: Record<Exclude<Provider, 'mock'>, string> = {
@@ -99,10 +101,12 @@ export function createAutomationConfig(): AutomationConfig {
     gemini: 'gemini-1.5-flash',
     claude: 'claude-3-5-sonnet-latest',
     ollama: 'llama3.1:8b',
+    sumopod: 'gpt-4o-mini',
   };
 
   const apiKey = envValue(
     process.env.HEYBUGS_AI_API_KEY,
+    process.env.SUMOPOD_API_KEY,
     process.env.OPENAI_API_KEY,
     process.env.OPENROUTER_API_KEY,
     process.env.GEMINI_API_KEY,

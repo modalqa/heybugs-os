@@ -1,5 +1,6 @@
 import type { AutomationConfig, PromptToFeatureResult } from '../types';
 import { createLlmClient, type LlmMessage } from './llm-client';
+import { getGlobalTokenTracker } from './token-tracker';
 
 function fallbackFeatureFromPrompt(prompt: string): PromptToFeatureResult {
   const lower = prompt.toLowerCase();
@@ -78,9 +79,12 @@ export async function promptToFeature(prompt: string, config: AutomationConfig):
     },
   ];
 
-  const featureText = await client.generate(messages);
+  const response = await client.generate(messages);
+  if (response.usage) {
+    getGlobalTokenTracker().addUsage(response.usage, config.model);
+  }
   return {
     source: 'ai',
-    featureText,
+    featureText: response.content,
   };
 }
